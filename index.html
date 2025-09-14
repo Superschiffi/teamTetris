@@ -1,9 +1,7 @@
-
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
+<meta charset="UTF-8">
 <title>teamTetris</title>
 <style>
   body { background: #111; color: white; font-family: sans-serif; text-align: center; }
@@ -13,10 +11,10 @@
 </head>
 <body>
 <h1>teamTetris</h1>
-<canvas height="600" id="game" width="300"></canvas>
+<canvas id="game" width="300" height="600"></canvas>
 <div id="stats">
-<p>team Combos: <span id="teamCount">0</span></p>
-<p>Lines Cleared: <span id="lineCount">0</span></p>
+  <p>team Combos: <span id="teamCount">0</span></p>
+  <p>Lines Cleared: <span id="lineCount">0</span></p>
 </div>
 <!--<audio id="fanfare" src="data:audio/mp3;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCA..."></audio>-->
 <audio id="fanfare" src="pling.mp3" type="audio/mpeg"></audio>
@@ -31,6 +29,9 @@ const colors = ['#FFFFFF', '#00B9E4', '#0046AD', '#002776'];
 const letters = ['t', 'e', 'a', 'm'];
 const board = Array.from({length: rows}, () => Array(cols).fill(null));
 let teamCount = 0, lineCount = 0;
+
+// Track which team combos have already been counted
+const countedCombos = new Set();
 
 function drawBlock(x, y, color, letter) {
   ctx.fillStyle = color;
@@ -148,6 +149,7 @@ function drop() {
 }
 
 function checkLines() {
+  // First check for line clears
   for (let y = rows - 1; y >= 0; y--) {
     if (board[y].every(cell => cell)) {
       board.splice(y, 1);
@@ -155,27 +157,58 @@ function checkLines() {
       lineCount++;
       document.getElementById('lineCount').textContent = lineCount;
       y++;
+      // Clear the counted combos since the board has changed
+      countedCombos.clear();
     }
   }
+  
+  // Check for new "team" combos
+  checkTeamCombos();
+}
+
+function checkTeamCombos() {
+  // Check horizontal "team" (both left-to-right and right-to-left)
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x <= cols - 4; x++) {
       const seq = board[y].slice(x, x + 4);
-      if (seq.every(cell => cell) && seq.map(c => c.letter).join('') === 'team') {
-        teamCount++;
-        document.getElementById('teamCount').textContent = teamCount;
-        document.getElementById('fanfare').play();
-        for (let i = 0; i < 4; i++) board[y][x + i] = null;
+      if (seq.every(cell => cell)) {
+        const word = seq.map(c => c.letter).join('');
+        const comboId = `h-${y}-${x}`;
+        
+        if ((word === 'team' || word === 'maet') && !countedCombos.has(comboId)) {
+          teamCount++;
+          document.getElementById('teamCount').textContent = teamCount;
+          document.getElementById('fanfare').play();
+          countedCombos.add(comboId);
+          
+          // Change color of the team combo blocks to gold
+          for (let i = 0; i < 4; i++) {
+            board[y][x + i].color = '#FFD700';
+          }
+        }
       }
     }
   }
+  
+  // Check vertical "team" (both up-to-down and down-to-up)
   for (let x = 0; x < cols; x++) {
     for (let y = 0; y <= rows - 4; y++) {
       const seq = board.slice(y, y + 4).map(row => row[x]);
-      if (seq.every(cell => cell) && seq.map(c => c.letter).join('') === 'team') {
-        teamCount++;
-        document.getElementById('teamCount').textContent = teamCount;
-        document.getElementById('fanfare').play();
-        for (let i = 0; i < 4; i++) board[y + i][x] = null;
+      if (seq.every(cell => cell)) {
+        const word = seq.map(c => c.letter).join('');
+        const comboId = `v-${x}-${y}`;
+        
+        if ((word === 'team' || word === 'maet') && !countedCombos.has(comboId)) {
+          teamCount++;
+          document.getElementById('teamCount').textContent = teamCount;
+          document.getElementById('fanfare').play();
+          countedCombos.add(comboId);
+          
+          // Change color of the team combo blocks to gold
+          for (let i = 0; i < 4; i++) {
+            board[y + i][x].color = '#FFD700';
+          }
+        }
       }
     }
   }

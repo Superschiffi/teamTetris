@@ -1,0 +1,208 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>teamTetris</title>
+<style>
+  body { background: #111; color: white; font-family: sans-serif; text-align: center; }
+  canvas { background: #222; display: block; margin: 0 auto; border: 4px solid #00B9E4; }
+  #stats { margin-top: 10px; }
+</style>
+</head>
+<body>
+<h1>teamTetris</h1>
+<canvas height="600" id="game" width="300"></canvas>
+<div id="stats">
+<p>team Combos: <span id="teamCount">0</span></p>
+<p>Lines Cleared: <span id="lineCount">0</span></p>
+</div>
+<!--<audio id="fanfare" src="data:audio/mp3;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCA..."></audio>-->
+<audio id="fanfare" src="pling.mp3" type="audio/mpeg"></audio>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const cols = 10, rows = 20, blockSize = 30;
+canvas.width = cols * blockSize;
+canvas.height = rows * blockSize;
+
+const colors = ['#FFFFFF', '#00B9E4', '#0046AD', '#002776'];
+const letters = ['t', 'e', 'a', 'm'];
+const board = Array.from({length: rows}, () => Array(cols).fill(null));
+let teamCount = 0, lineCount = 0;
+
+function drawBlock(x, y, color, letter) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
+  ctx.strokeStyle = '#000';
+  ctx.strokeRect(x * blockSize, y * blockSize, blockSize, blockSize);
+  ctx.fillStyle = (color === '#FFFFFF' || color === '#00B9E4') ? '#000' : '#FFF';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(letter, x * blockSize + blockSize / 2, y * blockSize + blockSize / 2);
+}
+
+const shapes = [
+  [[1,1,1,1]], // I
+  [[1,1],[1,1]], // O
+  [[0,1,0],[1,1,1]], // T
+  [[1,0,0],[1,1,1]], // J
+  [[0,0,1],[1,1,1]], // L
+  [[0,1,1],[1,1,0]], // S
+  [[1,1,0],[0,1,1]]  // Z
+];
+
+function createPiece() {
+  const shape = shapes[Math.floor(Math.random() * shapes.length)];
+  const color = colors[Math.floor(Math.random() * colors.length)];
+  const piece = {x: 3, y: 0, shape, color, letters: []};
+  for (let row of shape) {
+    for (let cell of row) {
+      if (cell) piece.letters.push(letters[Math.floor(Math.random() * letters.length)]);
+    }
+  }
+  return piece;
+}
+
+let current = createPiece();
+let dropCounter = 0, dropInterval = 1000;
+let lastTime = 0;
+
+function collide(board, piece) {
+  const {shape, x, y} = piece;
+  for (let r = 0; r < shape.length; r++) {
+    for (let c = 0; c < shape[r].length; c++) {
+      if (shape[r][c] && (board[y + r] && board[y + r][x + c]) !== null) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function merge(board, piece) {
+  const {shape, x, y, color, letters} = piece;
+  let letterIndex = 0;
+  for (let r = 0; r < shape.length; r++) {
+    for (let c = 0; c < shape[r].length; c++) {
+      if (shape[r][c]) {
+        board[y + r][x + c] = {color, letter: letters[letterIndex++]};
+      }
+    }
+  }
+}
+
+function rotate(matrix) {
+  return matrix[0].map((_, i) => matrix.map(row => row[i])).reverse();
+}
+
+function playerRotate() {
+  const oldShape = current.shape;
+  const oldLetters = [...current.letters];
+  const newShape = rotate(oldShape);
+  const newLetters = [];
+  for (let r = 0; r < newShape.length; r++) {
+    for (let c = 0; c < newShape[r].length; c++) {
+      if (newShape[r][c]) {
+        newLetters.push(oldLetters.shift());
+      }
+    }
+  }
+  current.shape = newShape;
+  current.letters = newLetters;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  board.forEach((row, y) => {
+    row.forEach((cell, x) => {
+      if (cell) drawBlock(x, y, cell.color, cell.letter);
+    });
+  });
+  const {shape, x, y, color, letters} = current;
+  let letterIndex = 0;
+  for (let r = 0; r < shape.length; r++) {
+    for (let c = 0; c < shape[r].length; c++) {
+      if (shape[r][c]) {
+        drawBlock(x + c, y + r, color, letters[letterIndex++]);
+      }
+    }
+  }
+}
+
+function drop() {
+  current.y++;
+  if (collide(board, current)) {
+    current.y--;
+    merge(board, current);
+    checkLines();
+    if (current.y <= 0) {
+      alert('Game Over!\nteam Combos: ' + teamCount + '\nLines Cleared: ' + lineCount);
+      location.reload();
+    }
+    current = createPiece();
+  }
+  dropCounter = 0;
+}
+
+function checkLines() {
+  for (let y = rows - 1; y >= 0; y--) {
+    if (board[y].every(cell => cell)) {
+      board.splice(y, 1);
+      board.unshift(Array(cols).fill(null));
+      lineCount++;
+      document.getElementById('lineCount').textContent = lineCount;
+      y++;
+    }
+  }
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x <= cols - 4; x++) {
+      const seq = board[y].slice(x, x + 4);
+      if (seq.every(cell => cell) && seq.map(c => c.letter).join('') === 'team') {
+        teamCount++;
+        document.getElementById('teamCount').textContent = teamCount;
+        document.getElementById('fanfare').play();
+        for (let i = 0; i < 4; i++) board[y][x + i] = null;
+      }
+    }
+  }
+  for (let x = 0; x < cols; x++) {
+    for (let y = 0; y <= rows - 4; y++) {
+      const seq = board.slice(y, y + 4).map(row => row[x]);
+      if (seq.every(cell => cell) && seq.map(c => c.letter).join('') === 'team') {
+        teamCount++;
+        document.getElementById('teamCount').textContent = teamCount;
+        document.getElementById('fanfare').play();
+        for (let i = 0; i < 4; i++) board[y + i][x] = null;
+      }
+    }
+  }
+}
+
+function update(time = 0) {
+  const delta = time - lastTime;
+  lastTime = time;
+  dropCounter += delta;
+  if (dropCounter > dropInterval) drop();
+  draw();
+  requestAnimationFrame(update);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') current.x--;
+  else if (e.key === 'ArrowRight') current.x++;
+  else if (e.key === 'ArrowDown') drop();
+  else if (e.key === 'ArrowUp') playerRotate();
+  if (collide(board, current)) {
+    if (e.key === 'ArrowLeft') current.x++;
+    else if (e.key === 'ArrowRight') current.x--;
+    else if (e.key === 'ArrowUp') playerRotate(); // undo rotation
+  }
+});
+
+update();
+</script>
+</body>
+</html>
